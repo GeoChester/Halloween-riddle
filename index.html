@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trick or Treat</title>
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #000;
+    overflow: hidden;
+    touch-action: none;                 /* phones: a finger drag moves the light, it does not scroll the page */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none; user-select: none;
+    /* the mouse pointer is a little flashlight; its tip is the light's centre (computers only) */
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%20viewBox%3D%270%200%2096%2096%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27b%27%20x1%3D%270%27%20y1%3D%271%27%20x2%3D%270%27%20y2%3D%270%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%23fff7b0%27%20stop-opacity%3D%270.85%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23fff7b0%27%20stop-opacity%3D%270.12%27%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%27m%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%270%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%232c2c38%27%2F%3E%3Cstop%20offset%3D%270.45%27%20stop-color%3D%27%236a6a7c%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%232c2c38%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cg%20transform%3D%27rotate%28-45%2048%2048%29%27%3E%3Cpolygon%20points%3D%2738%2C36%2058%2C36%2072%2C6%2024%2C6%27%20fill%3D%27url%28%23b%29%27%2F%3E%3Cpolygon%20points%3D%2734%2C38%2062%2C38%2057%2C54%2039%2C54%27%20fill%3D%27%23ff7a14%27%20stroke%3D%27%23000%27%20stroke-width%3D%272%27%20stroke-linejoin%3D%27round%27%2F%3E%3Cellipse%20cx%3D%2748%27%20cy%3D%2738%27%20rx%3D%2714%27%20ry%3D%274.5%27%20fill%3D%27%23fffbd0%27%20stroke%3D%27%23000%27%20stroke-width%3D%272%27%2F%3E%3Crect%20x%3D%2739%27%20y%3D%2754%27%20width%3D%2718%27%20height%3D%2736%27%20rx%3D%275%27%20fill%3D%27url%28%23m%29%27%20stroke%3D%27%23000%27%20stroke-width%3D%272%27%2F%3E%3Crect%20x%3D%2739%27%20y%3D%2760%27%20width%3D%2718%27%20height%3D%274%27%20fill%3D%27%2382ff2e%27%2F%3E%3Crect%20x%3D%2739%27%20y%3D%2780%27%20width%3D%2718%27%20height%3D%274%27%20fill%3D%27%2382ff2e%27%2F%3E%3Crect%20x%3D%2744%27%20y%3D%2768%27%20width%3D%278%27%20height%3D%279%27%20rx%3D%273%27%20fill%3D%27%23ff7a14%27%20stroke%3D%27%23000%27%20stroke-width%3D%271.5%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 18 18, crosshair;
+  }
+  /* the orange frame around the whole page */
+  #frame {
+    position: fixed; left: 8px; top: 8px; right: 8px; bottom: 8px;
+    border: 3px solid #ff7a14; border-radius: 22px; pointer-events: none;
+    box-shadow: 0 0 24px rgba(255,122,20,0.55), inset 0 0 22px rgba(125,255,58,0.18);
+  }
+  #veil { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; }
+  #view { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<canvas id="veil"></canvas>
+<canvas id="view"></canvas>
+<div id="frame"></div>
+
+<script>
+(function () {
+// ---- SETTINGS ------------------------------------------------------------
+const RADIUS = 110;          // size of the light in pixels (make it bigger or smaller)
+const TOUCH_LIFT = 70;       // on phones the light sits this many pixels above the finger so the finger doesn't cover it
+const LAYOUT_SEED = 17;      // change this number to get a different random scatter
+const PASS = "root";     // passphrase the words were sealed with
+// --------------------------------------------------------------------------
+
+// ---- THE SEALED WORDS ----------------------------------------------------------
+// The words are NOT written in this file; they are sealed here and only drawn onto the
+// picture. Their places on the page are scattered by the script below.
+const SEAL = "ER8B5gRDUavxJ/EspCcaH1C9bDARN3Q8LEXivc5JXBBcoLPMtyv0eFwrczhENf7707BjKEUAhAO6N+pCaHukWknx7DmYHbhIqUCB/ySaLFXfJIfxASHPZ6kzriMJ6+SAIHbaVwBCUY22+Vbv4poJ6GYz9pN8cCL3s+VzfhyfteQeaTv6q4ga4NclP/vx8oaF6yPvaL1Fnw/htg4hTDWx2tjaTETkEcUYnws5bGBPICto1hMQS535U7TPYPSTgq6h8eqwdZFvjCfFz+NA4LIFVB+tjEMxtVIvz8nxZ/oq3B95arfvi8IPSbDBRrI=";
+// ---------------------------------------------------------------------------
+
+// small helpers for the lock
+function sealHash(str, seed) {
+  seed = seed || 0;
+  var h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (var i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+function sealRng(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function sealStream(bytes, key) {
+  var rnd = sealRng(sealHash(key, 7) >>> 0);
+  return bytes.map(function (b) { return b ^ ((rnd() * 256) | 0); });
+}
+function sealText(text, key) {
+  var bytes = Array.from(new TextEncoder().encode(text));
+  return btoa(String.fromCharCode.apply(null, sealStream(bytes, key)));
+}
+function unsealText(b64, key) {
+  var raw = Array.from(atob(b64), function (c) { return c.charCodeAt(0); });
+  return new TextDecoder().decode(new Uint8Array(sealStream(raw, key)));
+}
+/* Used by the jigsaw and blacklight pages: returns the text, or null if the key was wrong. */
+function openSeal(b64, key) {
+  var t;
+  try { t = unsealText(b64, key); } catch (e) { return null; }
+  return t.slice(0, 4) === "CK1|" ? t.slice(4) : null;
+}
+
+
+// Halloween glow colours: [letters, glow]
+const COLORS = {
+  orange:  ["#ff8a1f", "#ff5a00"],
+  lime:    ["#8aff2e", "#2fd100"],
+  violet:  ["#c07bff", "#7a2cff"],
+  red:     ["#ff4545", "#d10000"],
+  yellow:  ["#ffe14a", "#ffb300"],
+  magenta: ["#ff5fe0", "#d0159f"],
+  teal:    ["#4ff7d8", "#00b89c"]
+};
+
+let ITEMS = [];
+try { const parsed = JSON.parse(openSeal(SEAL, "glow|" + PASS)); if (Array.isArray(parsed)) ITEMS = parsed; } catch (e) {}
+
+const veil = document.getElementById("veil");      // the black veil with the glowing pumpkins and ghosts
+const veilCtx = veil.getContext("2d");
+const view = document.getElementById("view");
+const vctx = view.getContext("2d");
+const crit = document.createElement("canvas");     // the pumpkins and ghosts, drawn once
+const cctx = crit.getContext("2d");
+const lit = document.createElement("canvas");      // all the words; lives only in memory
+const scratch = document.createElement("canvas");  // where the picture is cut to the circle of light
+const lctx = lit.getContext("2d");
+const sctx = scratch.getContext("2d");
+
+let W = 0, H = 0, dpr = 1;
+let tx = -999, ty = -999, x = -999, y = -999;
+let r = 0, targetR = 0, wasLit = false, lastR = 1;
+let CRITTERS = [];
+
+function rng(a) {                       // small seeded random generator, so the scatter is repeatable
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function fontFor(px) { return "900 " + px + 'px "Arial Black", "Segoe UI Black", "Helvetica Neue", Arial, sans-serif'; }
+
+// Scatter the words so none touch each other, then place the pumpkins and ghosts in the gaps.
+function layout() {
+  const rnd = rng(LAYOUT_SEED);
+  const scale = Math.max(0.85, Math.min(1, W / 700));            // slightly smaller words on phones, never tiny
+  const m = 34;
+  ITEMS.forEach(function (it) {
+    it.px = Math.round(it.px0 ? it.px0 * scale : (it.px0 = it.px, it.px * scale));
+    lctx.font = fontFor(it.px);
+    it.w = lctx.measureText(it.t).width + it.px * 0.2; it.h = it.px * 1.15;
+  });
+  const order = ITEMS.slice().sort(function (a, b) { return b.w * b.h - a.w * a.h; });
+  let pad = 46;
+  for (let round = 0; round < 40; round++) {
+    const placed = []; let ok = true;
+    for (const it of order) {
+      let found = false;
+      for (let tries = 0; tries < 600 && !found; tries++) {
+        const cx = m + it.w / 2 + rnd() * Math.max(0, W - 2 * m - it.w);
+        const cy = m + it.h / 2 + rnd() * Math.max(0, H - 2 * m - it.h);
+        if (placed.every(function (p) { return Math.abs(p.X - cx) >= (p.w + it.w) / 2 + pad || Math.abs(p.Y - cy) >= (p.h + it.h) / 2 + pad; })) {
+          it.X = cx; it.Y = cy; placed.push(it); found = true;
+        }
+      }
+      if (!found) { ok = false; break; }
+    }
+    if (ok) break;
+    pad = Math.max(8, pad - 4);
+  }
+  // pumpkins and ghosts: spread out, and kept off the words
+  CRITTERS = [];
+  const count = Math.min(CRITTER_KINDS.length, Math.max(2, Math.floor(W * H / 60000)));
+  const crnd = rng(LAYOUT_SEED + 99);
+  let apart = 160, away = 46;
+  for (let round = 0; round < 30 && CRITTERS.length < count; round++) {
+    for (let tries = 0; tries < 300 && CRITTERS.length < count; tries++) {
+      const px = 50 + crnd() * (W - 100), py = 50 + crnd() * (H - 100);
+      if (CRITTERS.every(function (c) { return Math.hypot(c.X - px, c.Y - py) >= apart; }) &&
+          ITEMS.every(function (it) { return Math.abs(it.X - px) >= it.w / 2 + away || Math.abs(it.Y - py) >= it.h / 2 + away; }))
+        CRITTERS.push({ k: CRITTER_KINDS[CRITTERS.length], X: px, Y: py, s: 52 + Math.round(crnd() * 14) });
+    }
+    apart *= 0.92; away = Math.max(0, away - 6);
+  }
+}
+
+// ---- the little Halloween drawings (each is drawn around 0,0 and is about 50 px wide) ----
+const CRITTER_KINDS = ["pumpkin", "ghost", "pumpkin", "ghost", "pumpkin", "ghost"];   // how many and which: edit this list
+function drawGhost(c, col) {
+  c.fillStyle = col[0];
+  c.beginPath();
+  c.moveTo(-20, 20); c.lineTo(-20, -4); c.arc(0, -4, 20, Math.PI, 0); c.lineTo(20, 20);
+  for (let k = 0; k < 3; k++) c.quadraticCurveTo(20 - 13.33 * k - 6.67, 31, 20 - 13.33 * (k + 1), 20);          // wavy hem
+  c.closePath(); c.fill();
+  c.shadowBlur = 0; c.fillStyle = "#000";
+  c.beginPath(); c.ellipse(-7, -3, 3.2, 5, 0, 0, Math.PI * 2); c.fill();                                       // eyes
+  c.beginPath(); c.ellipse(7, -3, 3.2, 5, 0, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.ellipse(0, 8, 3.4, 4.6, 0, 0, Math.PI * 2); c.fill();                                       // mouth
+}
+
+function drawPumpkin(c, col) {
+  c.fillStyle = col[0];
+  [[-11, 11, 14], [11, 11, 14], [0, 12, 15.5]].forEach(function (e) { c.beginPath(); c.ellipse(e[0], 4, e[1], e[2], 0, 0, Math.PI * 2); c.fill(); });
+  c.fillStyle = "#6cff3b"; c.shadowColor = "#2fd100";
+  c.beginPath(); c.moveTo(-3, -9); c.lineTo(-1, -19); c.lineTo(4, -19); c.lineTo(3, -9); c.closePath(); c.fill();   // stem
+  c.shadowBlur = 0; c.fillStyle = "#000";
+  c.beginPath(); c.moveTo(-12, 0); c.lineTo(-5, 0); c.lineTo(-8.5, -7); c.closePath(); c.fill();                 // carved eyes
+  c.beginPath(); c.moveTo(12, 0); c.lineTo(5, 0); c.lineTo(8.5, -7); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-1.5, 3); c.lineTo(1.5, 3); c.lineTo(0, 0); c.closePath(); c.fill();                   // carved nose
+  c.beginPath(); c.moveTo(-10, 8); c.lineTo(-5, 12); c.lineTo(-2.5, 8.5); c.lineTo(0, 12); c.lineTo(2.5, 8.5);
+  c.lineTo(5, 12); c.lineTo(10, 8); c.lineTo(7, 15); c.lineTo(-7, 15); c.closePath(); c.fill();                  // carved grin
+}
+
+const CRITTER_STYLE = {
+  ghost:   { col: ["#e9fff0", "#7dff8a"], draw: drawGhost },
+  pumpkin: { col: ["#ffa21f", "#ff6a00"], draw: drawPumpkin }
+};
+
+function paintText() {
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
+  lctx.clearRect(0, 0, lit.width, lit.height);
+  lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  lctx.textAlign = "center";
+  lctx.textBaseline = "middle";
+  lctx.lineJoin = "round";
+  ITEMS.forEach(function (it) {
+    const col = COLORS[it.c] || COLORS.orange;
+    lctx.font = fontFor(it.px);
+    lctx.lineWidth = it.px * 0.05;                       // a little outline makes the letters fatter
+    lctx.strokeStyle = col[0]; lctx.fillStyle = col[0];
+    lctx.shadowColor = col[1]; lctx.shadowBlur = 16 * dpr;     // glow
+    lctx.strokeText(it.t, it.X, it.Y); lctx.fillText(it.t, it.X, it.Y);
+    lctx.shadowBlur = 0;
+    lctx.strokeText(it.t, it.X, it.Y); lctx.fillText(it.t, it.X, it.Y);
+  });
+}
+
+function paintCritters() {
+  cctx.setTransform(1, 0, 0, 1, 0, 0);
+  cctx.clearRect(0, 0, crit.width, crit.height);
+  CRITTERS.forEach(function (d) {
+    const st = CRITTER_STYLE[d.k];
+    cctx.save();
+    cctx.setTransform(dpr * d.s / 50, 0, 0, dpr * d.s / 50, d.X * dpr, d.Y * dpr);
+    cctx.fillStyle = st.col[0];
+    cctx.shadowColor = st.col[1]; cctx.shadowBlur = 18 * dpr;
+    st.draw(cctx, st.col);
+    cctx.shadowBlur = 8 * dpr; st.draw(cctx, st.col);          // a second pass makes the glow stronger
+    cctx.restore();
+  });
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  [view, veil, crit, lit, scratch].forEach(function (c) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); });
+  layout();
+  paintText();
+  paintCritters();
+  lastR = 1;
+  wasLit = true;
+}
+
+function renderVeil() {
+  if (r <= 0 && lastR <= 0) return;          // nothing changed: the veil stays as it is
+  veilCtx.setTransform(1, 0, 0, 1, 0, 0);
+  veilCtx.globalCompositeOperation = "source-over";
+  veilCtx.clearRect(0, 0, veil.width, veil.height);
+  veilCtx.drawImage(crit, 0, 0);
+  if (r > 0) {                               // the light wipes the veil away, just like it reveals the words
+    veilCtx.globalCompositeOperation = "destination-out";
+    const cx = x * dpr, cy = y * dpr, rr = r * dpr * 1.2;
+    const g = veilCtx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+    g.addColorStop(0, "rgba(0,0,0,1)");
+    g.addColorStop(0.7, "rgba(0,0,0,1)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    veilCtx.fillStyle = g;
+    veilCtx.fillRect(0, 0, veil.width, veil.height);
+    veilCtx.globalCompositeOperation = "source-over";
+  }
+}
+
+function render() {
+  renderVeil();
+  lastR = r;
+  if (r <= 0) {
+    if (wasLit) { vctx.setTransform(1, 0, 0, 1, 0, 0); vctx.clearRect(0, 0, view.width, view.height); wasLit = false; }
+    return;
+  }
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalCompositeOperation = "source-over";
+  sctx.clearRect(0, 0, scratch.width, scratch.height);
+  sctx.drawImage(lit, 0, 0);
+  sctx.globalCompositeOperation = "destination-in";   // keep the words only where the light is
+  const cx = x * dpr, cy = y * dpr, rr = r * dpr;
+  const grad = sctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+  grad.addColorStop(0, "rgba(0,0,0,1)");
+  grad.addColorStop(0.6, "rgba(0,0,0,0.95)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  sctx.fillStyle = grad;
+  sctx.fillRect(0, 0, scratch.width, scratch.height);
+  vctx.setTransform(1, 0, 0, 1, 0, 0);
+  vctx.clearRect(0, 0, view.width, view.height);
+  vctx.drawImage(scratch, 0, 0);
+  wasLit = true;
+}
+
+function show(e) {
+  tx = e.clientX; ty = e.clientY - (e.pointerType === "touch" ? TOUCH_LIFT : 0); targetR = RADIUS;
+  if (r < 1) { x = tx; y = ty; }
+}
+function hide() { targetR = 0; }
+
+window.addEventListener("pointermove", show);
+window.addEventListener("pointerdown", show);
+window.addEventListener("pointerup", function (e) { if (e.pointerType !== "mouse") hide(); });
+window.addEventListener("pointercancel", hide);
+document.addEventListener("mouseleave", hide);
+window.addEventListener("blur", hide);
+window.addEventListener("resize", resize);
+
+function frame() {
+  x += (tx - x) * 0.25;
+  y += (ty - y) * 0.25;
+  r += (targetR - r) * 0.18;
+  if (r < 0.5 && targetR === 0) r = 0;
+  render();
+  requestAnimationFrame(frame);
+}
+
+resize();
+frame();
+})();
+</script>
+</body>
+</html>
